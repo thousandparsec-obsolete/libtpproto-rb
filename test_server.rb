@@ -6,7 +6,7 @@ require 'packet'
 require 'socket_support'
 
 server_port = DEFAULT_PORT
-packet_xml = 'packet-partial.xml'
+packet_xml = 'protocol.xml'
 
 ARGV.options do |opts|
   opts.banner = "Usage:  #{File.basename($0)}  [OPTIONS]"
@@ -32,7 +32,7 @@ ARGV.options do |opts|
   end
 end.parse!
 
-define_packets_from_xml packet_xml
+TPProto::XMLParser.define_packets_from_xml packet_xml
 
 class ConnectionHandler
   def initialize conn
@@ -48,38 +48,38 @@ class ConnectionHandler
     info! "Disconnected"
   end
   def okay msg=nil
-    send Okay.new( msg || 'Okay' )
+    send TPProto::Okay.new( msg || 'Okay' )
   end
   def packet packet
     debug! "Packet: #{packet}"
     case @state
     when :initial
       case packet
-      when Connect
+      when TPProto::Connect
         info! "Client is #{packet.string.inspect}"
         okay "And who might you be?"
         @state = :waitauth
       else
-        fail! Fail::Code::Frame, "Unexpected packet discarded"
+        fail! TPProto::Fail::Code::Frame, "Unexpected packet discarded"
       end
     when :waitauth
       case packet
-      when Login
+      when TPProto::Login
         if packet.username == 'admin@tp' && packet.password == 'adminpassword'
           info! "Authenticated as #{packet.username}"
           okay "Nice to see you!"
           @state = :idle
         else
-          note! Fail::Code::PermissionDenied, "Failed authentication for #{packet.username}", "Invalid username or password."
+          note! TPProto::Fail::Code::PermissionDenied, "Failed authentication for #{packet.username}", "Invalid username or password."
         end
       else
-        fail! Fail::Code::Frame, "Unexpected packet discarded"
+        fail! TPProto::Fail::Code::Frame, "Unexpected packet discarded"
       end
     when :idle
       case packet
       when nil; nil # TODO: Need a bit more functionality here :P
       else
-        fail! Fail::Code::Frame, "Unexpected packet discarded"
+        fail! TPProto::Fail::Code::Frame, "Unexpected packet discarded"
       end
     else
       crit! "Packet received while in unknown state!"
@@ -109,7 +109,7 @@ class ConnectionHandler
   # if appropriate.
   def note! protocol_code, internal_message, public_message=nil
     log "NOTE: #{internal_message}"
-    send Fail.new( protocol_code, public_message || internal_message ) if protocol_code
+    send TPProto::Fail.new( protocol_code, public_message || internal_message ) if protocol_code
   end
 
   # This method is used when the client does something very wrong;
@@ -118,7 +118,7 @@ class ConnectionHandler
   # forcibly disconnected.
   def fail! protocol_code, internal_message, public_message=nil
     log "FAIL: #{internal_message}"
-    send Fail.new( protocol_code, public_message || internal_message )
+    send TPProto::Fail.new( protocol_code, public_message || internal_message )
     throw :disconnect
   end
 
@@ -128,12 +128,12 @@ class ConnectionHandler
   # drop the client connection.
   def crit! internal_message
     log "CRIT: #{internal_message}"
-    send Fail.new( Fail::Code::Protocol, "Critical server failure" )
+    send TPProto::Fail.new( TPProto::Fail::Code::Protocol, "Critical server failure" )
     throw :disconnect
   end
 
   def shutdown!
-    send Fail.new( Fail::Code::Protocol, "Server shutting down" )
+    send TPProto::Fail.new( TPProto::Fail::Code::Protocol, "Server shutting down" )
   end
 
   def send packet

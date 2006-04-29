@@ -15,9 +15,10 @@ require 'socket'
 
 require 'packet'
 require 'socket_support'
+include TPProto
 
 $conn = TCPSocket.new( 'localhost', 6923 )
-define_packets_from_xml 'packet-partial.xml'
+XMLParser.define_packets_from_xml 'protocol.xml'
 
 def s p; $conn.write p.to_wire; true; end
 def r; read_packet_from_socket $conn; end

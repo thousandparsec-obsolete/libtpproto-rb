@@ -7,10 +7,10 @@ def read_packet_from_socket( socket )
   wire_header = socket.recvfrom(16)[0]
   return nil unless wire_header && wire_header != ''
   yield "Got header: #{ wire_to_hex( wire_header ) }" if block_given?
-  header = Header.from_wire( wire_header )
+  header = TPProto::Header.from_wire( wire_header )
   wire_payload = socket.recvfrom( header.length )[0]
   yield "Got payload: #{ wire_to_hex( wire_payload ) }" if block_given?
-  Header.load( wire_header + wire_payload )
+  TPProto::Header.load( wire_header + wire_payload )
 end
 
 def wire_to_hex s
