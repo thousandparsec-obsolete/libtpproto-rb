@@ -162,7 +162,7 @@ module TPProto
           PacketNames[name] = klass
           ::TPProto.const_set name, klass
           klasses << klass
-          packet_code = packet.attribute('code').value rescue nil
+          packet_code = packet.attribute('id').value rescue nil
           PacketTypes[packet_code.to_i] = klass if packet_code
         rescue
           puts "Failed loading packet '#{name}': #{RuntimeError === $! ? $! : ($!.to_s + ' @ ' + $!.backtrace.first)}"
