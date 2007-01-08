@@ -21,13 +21,13 @@ module PackListExtensions
     return parts
   end
   def unsigned_template_character_from_semisigned match_char
-    case match_char when 'i' then 'n' when 'l' then 'N' else match_char.downcase end
+    case match_char when 'i' then 'n' when 'l' then 'N' end
   end
   def unsigned_template_character match_char
     '%' + match_char
   end
   def bit_size_of_unsigned_template_character match_char
-    case match_char when 'n' then 16 when 'N' then 32 end
+    case match_char when 'S', 's', 'n' then 16 when 'N' then 32 end
   end
 end
 
@@ -50,8 +50,10 @@ class Array
       if special == :string
         s << [inner_value.size + 1, inner_value].pack( "#{size_format}a#{inner_value.size + 1}" )
       else
+        inner_value = [inner_value] unless inner_value.is_a? Array
         s << [inner_value.size].pack(size_format)
         inner_value.each do |el|
+          #puts "Packing inner #{((el.is_a? Array ) ? el : [el]).inspect} with #{parts[1].inspect}"
           s << ((el.is_a? Array ) ? el : [el]).pack( parts[1] )
         end
       end
@@ -78,7 +80,7 @@ class String
           next_template = unsigned_template_character_from_semisigned( next_template )
           bit_size = bit_size_of_unsigned_template_character( next_template )
           value = s.unpack!( next_template ).first
-          value = -1 if value == 2 ** bit_size - 1
+          value = -1 if bit_size && value == 2 ** bit_size - 1
         end
         right = s.unpack(parts[1])
         return left + [value] + right
@@ -93,7 +95,7 @@ class String
       end
       if special == :string
         middle_content = middle_content.join('')
-        middle_content.chop! if middle_content[-1].zero?
+        middle_content.chop! if !middle_content.empty? && middle_content[-1].zero?
       end
       right_content = s.unpack(parts[2])
       left_content + [middle_content] + right_content
@@ -106,21 +108,29 @@ class String
   end
 end
 
-#require 'test/unit'
-#class PackTests < Test::Unit::TestCase
-#  def test_things
-#    t '[C][Z*%S]SZ*L$aZ*N', ['foo foo'.split('').map{|c|c[0]}, [['s', 1123], ['xz', -1], ['--', 1789]], 17, 'xyzzy', 234125, 'whee whee', 'blah blah', 253523]
-#  end
-#  def t f, a
-#    s = a.pack(f)
-#    p s
-#    puts s.unpack('C*').map {|c| ('0' + c.to_s(16))[-2,2] }.join(' ').gsub(/ (..) /){|m|$1+' '}
-#
-#    a2 = s.unpack(f)
-#    assert_equal a, a2
-#
-#    s2 = a2.pack(f)
-#    assert_equal s, s2
-#  end
-#end
+if $0 == __FILE__
+  require 'test/unit'
+  class PackTests < Test::Unit::TestCase
+    def test_things
+      t 'SZ*L$aZ*N', [17, 'xyzzy', 234125, 'whee whee', 'blah blah', 253523]
+      t '[C]', ['foo foo'.split('').map{|c|c[0]}]
+      t 'Z*%S', ['s', 1123]
+      t '[Z*%S]', [[['s', 1123], ['xz', 3], ['--', 1789]]]
+      t '[C][Z*%S]SZ*L$aZ*N', ['foo foo'.split('').map{|c|c[0]}, [['s', 1123], ['xz', -1], ['--', 1789]], 17, 'xyzzy', 234125, 'whee whee', 'blah blah', 253523]
+      t 'a4[N]', ['abcd', [12, 34, 56, 78, 90, 123, 456, 789, 1234, 5687, 90123, 45678, 901234, 567890]]
+      t 'a4[%N]', ['abcd', [12, -34, 56, -78, 90, -123, 456, -789, 1234, -5687, 90123, -45678, 901234, -567890]]
+    end
+    def t f, a
+      s = a.pack(f)
+      p s
+      puts s.unpack('C*').map {|c| ('0' + c.to_s(16))[-2,2] }.join(' ').gsub(/ (..) /){|m|$1+' '}
+
+      a2 = s.unpack(f)
+      assert_equal a, a2
+
+      s2 = a2.pack(f)
+      assert_equal s, s2
+    end
+  end
+end
 

@@ -15,24 +15,20 @@ require 'socket'
 
 require 'packet'
 require 'socket_support'
-include TPProto
+require 'client'
 
-$conn = TCPSocket.new( 'localhost', 6923 )
-XMLParser.define_packets_from_xml 'protocol.xml'
+#$conn = TPConnection.new('localhost', 6923)
+$conn = TPConnection.new
 
-def s p; $conn.write p.to_wire; true; end
-def r; read_packet_from_socket $conn; end
+def r; $conn.read; end
 
-def ok! msg=nil; s Okay.new(msg || 'Manual okay'); end
-def fail! code, msg=nil; code = Fail::Code.const_get(code) if code.is_a? Symbol; s Fail.new(code, msg || 'Manual failure'); end
-def connect! client=nil; ident = 'libtpproto-rb'; ident = "#{client} [#{ident}]" if client; s Connect.new(ident); end
-def auth! user, pass; s Login.new(user, pass); end
+def ok! msg=nil; @conn.okay(msg || 'Manual okay'); end
+def fail! code, msg=nil; code = TPProto::Fail::Code.const_get(code) if code.is_a? Symbol; $conn.fail(code, msg || 'Manual failure'); end
+def connect! client=nil; ident = 'libtpproto-rb'; ident = "#{client} [#{ident}]" if client; $conn.connect!(ident); end
+def auth! user, pass; $conn.login!(user, pass); end
 
 def c!
 	connect! 'Ruby Interactive Test Client'
-	raise "Connect failed" unless Okay === r
-	auth! 'admin@tp', 'adminpassword'
-	raise "Auth failed" unless Okay === r
-	true
+	auth! 'matthew', 'matthew'
 end
 

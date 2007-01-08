@@ -7,7 +7,7 @@ module TPProto
   class Packet < Struct
     @@sequence = 0
     def to_wire
-      prepare unless self.sequence
+      prepare!
       to_a.pack(self.class.template)
     end
     def payload_size
@@ -16,20 +16,37 @@ module TPProto
       t = self.class.template[self.class.header.template.size, self.class.template.size]
       a.pack(t).size
     end
-    def prepare
+    def prepare!
       self.version = 'TP03'
-      self.sequence = (@@sequence += 1)
-      self.packet_type ||= find_packet_type(self.class)
+      self.sequence ||= (@@sequence += 1)
       self.length = payload_size
+
+      klass = self.class
+      id_list = find_packet_type(klass).split(':')
+      while klass && !id_list.empty?
+        self[klass.subtype] = id_list.pop.to_i if klass.respond_to?(:subtype) && klass.subtype
+        klass = klass.parent_packet
+      end
+      raise "Didn't use up all the available ID components while assigning packet types; still have #{id_list.inspect}" unless id_list.empty?
     end
     def find_packet_type klass
       PacketTypes.each {|k,v| return k if v == klass }
       raise "Unknown packet type '#{klass.inspect}'; only know: #{PacketTypes.inspect}"
     end
-    def self.load wire_string
-      header = self.header.from_wire( wire_string )
-      packet_class = PacketTypes[header.packet_type]
-      packet_class.from_wire( wire_string )
+    def self.load wire_string, id_list=[]
+      packet_class = self.header
+      packet = packet_class.from_wire( wire_string )
+
+      id_list = []
+      while packet_class.subtype
+        id_list << packet[packet_class.subtype]
+        packet_class = PacketTypes[id_list.join(':')]
+        raise "Unknown packet identifier '#{id_list.join(':')}'" unless packet_class
+
+        packet = packet_class.from_wire( wire_string )
+      end
+
+      packet
     end
     def self.from_wire wire_string
       raw_new *wire_string.unpack(template)
@@ -38,15 +55,18 @@ module TPProto
       attr_accessor :template
       attr_accessor :keys
       attr_accessor :header
+      attr_accessor :parent_packet
+      attr_accessor :subtype
     end
-    def self.inherit name, parent, extra_template, *extra_keys
-      return self.new( name, extra_template, *extra_keys ) unless parent
+    def self.inherit name, subtype, parent, extra_template, *extra_keys
+      return self.new( name, subtype, extra_template, *extra_keys ) unless parent
 
-      c = new( name, parent.template + extra_template, *(parent.keys + extra_keys) )
+      c = new( name, subtype, parent.template + extra_template, *(parent.keys + extra_keys) )
       c.header = parent.header || parent
+      c.parent_packet = parent
       c
     end
-    def self.new name, template, *keys
+    def self.new name, subtype, template, *keys
       key_names = []
       keys.each do |k|
         if k.is_a? Hash
@@ -83,6 +103,8 @@ module TPProto
       o.template = template
       o.keys = keys
       o.header = o
+      o.parent_packet = o
+      o.subtype = subtype
       o
     end
   end
@@ -126,10 +148,11 @@ module TPProto
       end
     end
     def self.parse_structure_def children
-      template = ''; names = []
+      subtype = nil; template = ''; names = []
       children.each do |c|
         name = c.elements['name'].text.to_sym rescue raise("No name on structure element (#{c.name})")
         name = translate_name_for_ruby( name )
+        subtype = name if c.elements['subtype']
         if c.name == 'list'
           inner_template, inner_names = parse_structure_def( ( c.get_elements('structure')[0].get_elements('*') rescue [] ) )
           inner_template = "[#{inner_template}]"
@@ -143,7 +166,7 @@ module TPProto
         names << name
       end
 
-      return template, names
+      return template, names, subtype
     end
 
     def self.define_packets_from_xml xml_file
@@ -155,15 +178,16 @@ module TPProto
         begin
           parent = packet.attribute('base').value.to_s rescue nil
           parent_klass = PacketNames[parent]
+          raise "Can't find parent packet #{parent.inspect}" if parent && !parent_klass
           structure = packet.get_elements('structure')[0].get_elements('*') rescue []
-          template_string, field_names = parse_structure_def(structure)
-          klass = Packet.inherit( name, parent_klass, template_string, *field_names )
+          template_string, field_names, subtype = parse_structure_def(structure)
+          klass = Packet.inherit( name, subtype, parent_klass, template_string, *field_names )
           define_enum_values klass, packet
           PacketNames[name] = klass
           ::TPProto.const_set name, klass
           klasses << klass
           packet_code = packet.attribute('id').value rescue nil
-          PacketTypes[packet_code.to_i] = klass if packet_code
+          PacketTypes[packet_code.to_s] = klass if packet_code
         rescue
           puts "Failed loading packet '#{name}': #{RuntimeError === $! ? $! : ($!.to_s + ' @ ' + $!.backtrace.first)}"
         end
