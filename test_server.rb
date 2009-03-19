@@ -35,22 +35,22 @@ end.parse!
 TPProto::XMLParser.define_packets_from_xml packet_xml
 
 class ConnectionHandler
-  def initialize conn
+  def initialize(conn)
     @conn = conn
     @state = :initial
     info! "Connected"
   end
   attr_reader :conn
-  def log msg
+  def log(msg)
     puts "#{conn}: #{msg.gsub(/\n/, "\n   ")}"
   end
   def gone
     info! "Disconnected"
   end
-  def okay msg=nil
+  def okay(msg=nil)
     send TPProto::Okay.new( msg || 'Okay' )
   end
-  def packet packet
+  def packet(packet)
     debug! "Packet: #{packet}"
     case @state
     when :initial
@@ -88,17 +88,17 @@ class ConnectionHandler
 
   # Lowest level trace information, including on-the-wire packet
   # representations.
-  def trace! internal_message
+  def trace!(internal_message)
     log "TRACE: #{internal_message}"
   end
 
   # Debugging messages, such as packet traces.
-  def debug! internal_message
+  def debug!(internal_message)
     log "DEBUG: #{internal_message}"
   end
 
   # Used to log "normal", but potentially noteworthy events.
-  def info! internal_message
+  def info!(internal_message)
     log "INFO: #{internal_message}"
   end
 
@@ -107,7 +107,7 @@ class ConnectionHandler
   # is an authentication failure. It is the client's responsibility to
   # decide whether it is able to recover from the error, and disconnect
   # if appropriate.
-  def note! protocol_code, internal_message, public_message=nil
+  def note!(protocol_code, internal_message, public_message=nil)
     log "NOTE: #{internal_message}"
     send TPProto::Fail.new( protocol_code, public_message || internal_message ) if protocol_code
   end
@@ -116,7 +116,7 @@ class ConnectionHandler
   # generally a Frame or Protocol failure. Unlike #crit!, this is not
   # the server's fault. This is for irrecoverable errors; the client is
   # forcibly disconnected.
-  def fail! protocol_code, internal_message, public_message=nil
+  def fail!(protocol_code, internal_message, public_message=nil)
     log "FAIL: #{internal_message}"
     send TPProto::Fail.new( protocol_code, public_message || internal_message )
     throw :disconnect
@@ -126,7 +126,7 @@ class ConnectionHandler
   # normal operation, it should never occur, no matter what the client
   # does. In an effort to recover (and to minimize vulnerability), we
   # drop the client connection.
-  def crit! internal_message
+  def crit!(internal_message)
     log "CRIT: #{internal_message}"
     send TPProto::Fail.new( TPProto::Fail::Code::Protocol, "Critical server failure" )
     throw :disconnect
@@ -136,16 +136,16 @@ class ConnectionHandler
     send TPProto::Fail.new( TPProto::Fail::Code::Protocol, "Server shutting down" )
   end
 
-  def send packet
+  def send(packet)
     conn.write packet.to_wire
   end
 end
 
 class TPServer < GServer
-  def initialize port, *args
+  def initialize(port, *args)
     super port, *args
   end
-  def serve conn
+  def serve(conn)
     handler = ConnectionHandler.new(conn)
     begin
       catch :disconnect do

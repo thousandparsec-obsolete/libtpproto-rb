@@ -29,7 +29,7 @@ module TPProto
       end
       raise "Didn't use up all the available ID components while assigning packet types; still have #{id_list.inspect}" unless id_list.empty?
     end
-    def find_packet_type klass
+    def find_packet_type(klass)
       PacketTypes.each {|k,v| return k if v == klass }
       raise "Unknown packet type '#{klass.inspect}'; only know: #{PacketTypes.inspect}"
     end
@@ -94,7 +94,7 @@ module TPProto
       o = super(name, *key_names)
       class << o
         alias raw_new new
-        def new *values
+        def new(*values)
           a = values.dup
           header.keys.each { a.unshift nil }
           raw_new *a

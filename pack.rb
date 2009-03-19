@@ -1,6 +1,6 @@
 
 module PackListExtensions
-  def first_pack_list_type( template_string )
+  def first_pack_list_type(template_string)
     list_types = [['[', ']', 'N', nil], ['{', '}', 'Q', nil], ['$', '', 'N', :string], ['%', nil, nil, nil]]
 
     list_types.each { |lt| lt.push template_string.index( lt[0] ) }
@@ -9,24 +9,24 @@ module PackListExtensions
 
     list_types.first
   end
-  def handle_list_extensions( original, template_string )
+  def handle_list_extensions(original, template_string)
     list_type = first_pack_list_type( template_string )
 
     return yield( split_template( template_string, list_type[0], list_type[1] ), list_type[2], list_type[3] ) if list_type
     send( original, template_string )
   end
-  def split_template( template_string, left_bracket, right_bracket )
+  def split_template(template_string, left_bracket, right_bracket)
     parts = template_string.split(left_bracket, 2)
     parts[1], parts[2] = parts.last.split(right_bracket, 2) if right_bracket
     return parts
   end
-  def unsigned_template_character_from_semisigned match_char
+  def unsigned_template_character_from_semisigned(match_char)
     case match_char when 'i' then 'n' when 'l' then 'N' end
   end
-  def unsigned_template_character match_char
+  def unsigned_template_character(match_char)
     '%' + match_char
   end
-  def bit_size_of_unsigned_template_character match_char
+  def bit_size_of_unsigned_template_character(match_char)
     case match_char when 'S', 's', 'n' then 16 when 'N' then 32 end
   end
 end
@@ -34,7 +34,7 @@ end
 class Array
   include PackListExtensions
   alias original_pack pack
-  def pack template_string
+  def pack(template_string)
     handle_list_extensions :original_pack, template_string do |parts, size_format, special|
       # Ruby natively handles packing negative values into an unsigned,
       # so we just have to change it to use the right byte-order
@@ -65,7 +65,7 @@ end
 class String
   include PackListExtensions
   alias original_unpack unpack
-  def unpack template_string
+  def unpack(template_string)
     handle_list_extensions :original_unpack, template_string do |parts, size_format, special|
       s = dup
 
@@ -101,7 +101,7 @@ class String
       left_content + [middle_content] + right_content
     end
   end
-  def unpack! template_string
+  def unpack!(template_string)
     unpacked = unpack(template_string)
     slice! 0, unpacked.pack(template_string).size
     unpacked
@@ -120,7 +120,7 @@ if $0 == __FILE__
       t 'a4[N]', ['abcd', [12, 34, 56, 78, 90, 123, 456, 789, 1234, 5687, 90123, 45678, 901234, 567890]]
       t 'a4[%N]', ['abcd', [12, -34, 56, -78, 90, -123, 456, -789, 1234, -5687, 90123, -45678, 901234, -567890]]
     end
-    def t f, a
+    def t(f, a)
       s = a.pack(f)
       p s
       puts s.unpack('C*').map {|c| ('0' + c.to_s(16))[-2,2] }.join(' ').gsub(/ (..) /){|m|$1+' '}

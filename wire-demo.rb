@@ -4,10 +4,10 @@ include TPProto
 
 XMLParser.define_packets_from_xml 'protocol.xml'
 
-def wire_to_hex s
+def wire_to_hex(s)
   s.unpack('C*').map {|c| ('0' + c.to_s(16))[-2,2] }.join('').gsub(/..../){|m|m+' '}
 end
-def hex_to_wire s
+def hex_to_wire(s)
   s.gsub(/\s+/, '').gsub(/../){|m|m+' '}.split(' ').map{|c|c.to_i(16)}.pack('C*')
 end
 
